@@ -7,7 +7,11 @@ const { getFirestore } = require('firebase-admin/firestore');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors({ origin: '*' }));
+app.use(cors({
+  origin: ['https://chiranth-008.github.io', '*'],   // Allow your exact GitHub Pages domain
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type']
+}));
 app.use(express.json());
 
 // Firebase setup
