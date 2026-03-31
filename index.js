@@ -7,82 +7,70 @@ const { getFirestore } = require('firebase-admin/firestore');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ✅ CORS for your GitHub Pages site (you can change '*' to your exact GitHub URL later)
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type']
-}));
+app.use(cors({ origin: '*' }));
 app.use(express.json());
 
-// 🔥 Firebase Admin SDK setup (works with file OR env var)
+// Firebase setup
 let serviceAccount;
-if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-  serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-} else {
-  try {
-    serviceAccount = require('./firebase-service-account.json');
-  } catch (err) {
-    console.error('❌ Firebase service account not found. Please add firebase-service-account.json or set FIREBASE_SERVICE_ACCOUNT env var.');
-    process.exit(1);
-  }
+try {
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    } else {
+        serviceAccount = require('./firebase-service-account.json');
+    }
+} catch (err) {
+    console.error("❌ Firebase service account error:", err.message);
 }
 
-initializeApp({
-  credential: cert(serviceAccount)
-});
-
+initializeApp({ credential: cert(serviceAccount) });
 const db = getFirestore();
 
 // Health check
 app.get('/', (req, res) => {
-  res.json({ message: '🚀 Minecraft Guide Backend is running! Connected to Firebase.' });
+    res.json({ message: "🚀 Minecraft Backend is running! Connected to Firebase." });
 });
 
-// ✅ GET all dynamic guide sections from Firebase
-app.get('/api/sections', async (req, res) => {
-  try {
-    const snapshot = await db.collection('guide-sections')
-      .orderBy('order', 'asc')
-      .get();
-    
-    const sections = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+// Get all comments
+app.get('/api/comments', async (req, res) => {
+    try {
+        const snapshot = await db.collection('comments')
+            .orderBy('timestamp', 'desc')
+            .get();
 
-    res.json(sections);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch sections from Firebase' });
-  }
-});
+        const comments = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
 
-// ✅ POST user feedback / community tip
-app.post('/api/feedback', async (req, res) => {
-  try {
-    const { name, message } = req.body;
-    
-    if (!name || !message) {
-      return res.status(400).json({ error: 'Name and message are required' });
+        res.json(comments);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Failed to fetch comments" });
     }
-
-    await db.collection('feedbacks').add({
-      name: name.trim(),
-      message: message.trim(),
-      timestamp: new Date().toISOString(),
-      // You can add more fields later (e.g. minecraftVersion, rating)
-    });
-
-    res.json({ success: true, message: 'Thank you! Your feedback has been saved to Firebase.' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to save feedback' });
-  }
 });
 
-// Start server
+// Save new comment
+app.post('/api/comments', async (req, res) => {
+    try {
+        const { name, message } = req.body;
+
+        if (!message) {
+            return res.status(400).json({ error: "Message is required" });
+        }
+
+        await db.collection('comments').add({
+            name: (name || 'Anonymous').trim(),
+            message: message.trim(),
+            timestamp: new Date().toISOString()
+        });
+
+        res.json({ success: true, message: "Comment saved to Firebase!" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Failed to save comment" });
+    }
+});
+
 app.listen(PORT, () => {
-  console.log(`✅ Minecraft Backend running on http://localhost:${PORT}`);
-  console.log(`📡 API endpoints: /api/sections and /api/feedback`);
+    console.log(`✅ Server running on port ${PORT}`);
 });
